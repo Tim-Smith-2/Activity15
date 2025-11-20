@@ -1,0 +1,323 @@
+---
+title: "Activity 14"
+author: "Timothy Smith"
+date: "Nov 10, 2024"
+date-modified: now
+format: 
+  pdf: 
+    toc: false
+    number-sections: true
+    number-depth: 5
+    fig-align: center
+    cap-location: top
+    geometry: 
+      - top=1in
+      - left=1in
+      - right=1in
+      - bottom=1in
+    colorlinks: true
+execute: 
+  warning: false
+  echo: false
+---
+
+# Wrangled Army Data Table
+
+
+
+```{r}
+#| label: tbl-gender-rank
+#| tbl-cap: "Gender and Rank Frequence Table"
+#| tbl-pos: H
+#| html-table-processing: none
+#| lst-label: lst-table1
+#| lst-cap: "Code Chunk for Making Table"
+ 
+
+#install.packages('googlesheets4') #Step 1: Load packages into R----
+library(tidyverse)
+#install.packages("rvest")
+library(rvest)
+library(googlesheets4)
+#install.packages("readr")
+library(readr)
+#install.packages("tidyverse")
+
+gs4_deauth()
+Armed_ForcesRaw1 <- read_sheet(#Step 2: Load data inot R
+  ss = "https://docs.google.com/spreadsheets/d/19xQnI1cBh6Jkw7eP8YQuuicMlVDF7Gr-nXCb5qbwb_E/edit?usp=sharing",
+  na = c("", "N/A*")
+)
+
+Armed_ForcesClean1 <-Armed_ForcesRaw1 %>% # Step 3: Start Piping first data ----
+rename(# Step 4: Rename all column names in first set----
+       Army.Male = `...2`,
+       Army.Female = `...3`,
+       junk1 = `...4`,
+       Navy.Male = `...5`,
+       Navy.Female = `...6`,
+       junk2 = `...7`,
+       Marine_Corps.Male = `...8`,
+       Marine_Corps.Female = `...9`,
+       junk3 = `...10`,
+       Air_Force.Male = `...11`,
+       Air_Force.Female = `...12`,
+       junk4 = `...13`,
+       Space_Force.Male = `...14`,
+       Space_Force.Female = `...15`,
+       junk5 = `...16`,
+       junk6 = `...17`,
+       junk7 = `...18`,
+       junk8 = `...19`,
+       Pay_Grade = `Active-Duty Personnel by Service Branch, Sex, and Pay Grade`,
+)%>%
+  filter(#Step 5: Filter and select all unnecessary columns and rows----
+         Pay_Grade != "NA",
+         Pay_Grade != "Pay Grade",
+         Pay_Grade != "Total Enlisted",
+         Pay_Grade != "Total Warrant Officers",
+         Pay_Grade != "Total Officers",
+         Pay_Grade != "Total",
+         Pay_Grade != "Source: DMDC Active-Duty Military Personnel Master File (June 2025)",
+  )%>%
+  dplyr::select(!contains("junk"))%>%
+  pivot_longer(#Step 6: Pivot data ----
+               cols = contains("."),
+               names_to = "Branch.Gender",
+               values_to = "count",
+  )%>%
+  separate_wider_delim(#Step 7: move Branch and gender into their own columns----
+                       cols = Branch.Gender,
+                       delim = ".",
+                       names = c("Branch", "Gender"),
+                       too_few = "align_start",
+  ) %>%
+  mutate(#Step 8: mutate back to normal names for the branches
+    count = unlist(count),
+    Branch = gsub("_", " ", Branch)
+  )
+
+
+
+# count = readr::parse_number(count, na=c("N/A*"))
+
+Rank_Raw <- read_html("https://neilhatfield.github.io/Stat184_PayGradeRanks.html") %>%
+  html_elements(css = "table" ) %>%
+  html_table()
+
+Rank_RawData <- Rank_Raw[[1]]
+
+
+
+
+names(Rank_RawData) <- c("junk1", "Pay_Grade", "Army", "Navy", "Marine_Corps", "Air_Force", "Space_Force", "junk2")
+
+Rank_RawDataClean <- Rank_RawData %>% #Step 9: Then remove and name columns properly----
+dplyr::select(!contains("junk")) %>%
+  mutate(#Step 10: remove useless rows and get blank values to proper NA----
+         across(
+           .cols = everything(),
+           .fns = ~ na_if(x = .x, y= "--")
+         )
+  )%>%
+  filter(
+    Pay_Grade != "Pay Grade",
+    Pay_Grade != "Note: -- indicates that a pay grade is not currently used by a service branch",
+  )  %>%
+  pivot_longer(#Step 11: pivote the Ranks data----
+               cols = (!Pay_Grade),
+               names_to = "Branch",
+               values_to = "Rank",
+  )%>%
+  mutate(
+    Branch = gsub("_", " ", Branch)
+  )
+
+Armed_forces_combined<- left_join(#Step 12: left join the two data sets----
+                                  x = Armed_ForcesClean1,
+                                  y = Rank_RawDataClean,
+                                  by = join_by(Pay_Grade==Pay_Grade, Branch==Branch)
+)
+
+ARP <- Armed_forces_combined %>%
+  filter(count != is.na(count))%>%
+  uncount(count, .id="id")
+
+#install.packages("janitor")
+library(janitor)
+#install.packages("knitr")
+library(knitr)
+#install.packages("kableExtra")
+library(kableExtra)
+#install.packages("tidyverse")
+library(tidyverse)
+
+
+
+
+ARPclean1 <- ARP %>%
+  filter(Branch == "Army")%>%
+  filter(stringr::str_detect(Pay_Grade, "E"))%>%
+  group_by(Gender, Rank)
+
+# Creates the Gender and Rank Table
+
+ARPcleanGenRanTable <- ARPclean1 %>%
+  tabyl(Rank, Gender)%>%
+  adorn_totals(where = c("row", "col")) %>%
+  adorn_percentages(denominator = "all") %>%
+  adorn_pct_formatting(digits = 2) %>%
+  adorn_title(
+    placement = "combined",
+    row_name = "Rank",
+    col_name = "Gender")
+
+formatsGenRanNs <-attr(ARPcleanGenRanTable, "core") %>%
+  adorn_totals(where = c("row", "col"))%>%
+  mutate(
+    across(where(is.numeric), format, big.mark = ",")
+  )
+
+ARPGenRanTableReal <- ARPcleanGenRanTable %>%
+  adorn_ns(position = "front", ns = formatsGenRanNs)
+
+ARPGenRanTableReal %>%
+  kable(
+    booktabs = TRUE,
+    format = "latex"
+  )
+  
+```
+
+@tbl-gender-rank is a table with Ranks on one side and Gender on the other. There is the frequency and a percentage of all the enlisted army in each gender and rank as well as the total for all the ranks and all the males and females. There is a disproportionate amount of women in the Army compared to men with men making up 84.34% of all Army Enlisted set of ranks. There is also a lower percentage of females in higher ranks such as there are only 394 women out of the the total 3,259 members of the Sergeant Major or Command Sergeant Major rank. There are also a higher percentage of women in the middle tier such as Corporal OR Specialist, while there is less proportion of women in the lowest tier compared to men. This leads to their being a higher representation of men who join the military and make up lower position levels, while the women that join are committed and are in a greater proportion of the mid level, but the men have a higher proportion of the top level of the Army Enlisted set of ranks. 
+
+# Time Series Plot for Baby Names throughout the years
+
+```{r}
+#| label: fig-countnames
+#| fig-cap: "Name Popularity throughout the years"
+#| fig-pos: H
+#| fig-height: 5
+#| fig-alt: "Line graph depicting the frequency of six names from 1875 to 2020, with notable peaks for Kobe, Stephen, and Jordan."
+#| lst-label: lst-figure1
+#| lst-cap: "Code Chunk Creating a Time Series Plot for Popular Baby Names"
+
+#Title: Names and their count from year to year
+#Step 1: load packages and the data ----
+#install.packages("dcData")
+library(dcData)
+#view(BabyNames)
+#install.packages("ggplot2")
+library(ggplot2)
+#install.packages("tidyverse")
+library(tidyverse)
+
+#Step 2: filter the Baby names to only the rows that are needed----
+BabyNamesClean <- BabyNames %>%
+  filter(name %in% c(
+    "Jordan",
+    "Stephen",
+    "Kobe",
+    "Allen",
+    "Taylor",
+    "Simone"
+  ))%>%
+  pivot_wider(
+    id_cols = c(year, name),
+    names_from = sex,
+    values_from = count
+  )
+  
+  BabyNamesClean[is.na(BabyNamesClean)] <- 0
+ 
+    BabyNamesMFClean <- BabyNamesClean%>%
+    mutate(CountMF = M + F)%>%
+    select(c("year", "name", "CountMF"))
+  
+
+#Step 3: use ggplot to create a line graph with x as year, y as count, color as names, and line type as sex ----
+  ggplot(
+    data = BabyNamesMFClean,
+    mapping = aes(
+      x = year,
+      y = CountMF,
+      color = name,
+      linetype = name,
+    )
+  ) +
+  geom_line(linewidth = 1) +
+  labs(#Step 4: add labels and title to the data visualization and create the colors for the lines----
+    x = "Year",
+    y = "Count",
+    color = "Name",
+    shape = "Name",
+    title = "Names and their count from year to year"
+  ) +
+  scale_color_manual(
+    values = c("#332288", "#117733", "#44AA99","#88CCEE", "#DDCC77", "#AA4499","#800080", "#FFA500" )
+  )+
+  theme_bw() +
+  theme(
+    legend.position = "bottom"
+  )
+```
+
+In @fig-countnames the time sequence plot measures the amount of babies named six difference names: Allen, Kobe, Stephen, Jordan, Simone, and Taylor. There is a Count of the babies per year on the y axis and goes from 0 to 30000. The year it is on the x axis and goes from 1875 to current. The names are separated by color and line type. I chose these names because they are famous athletes and singers throughout the last century. The amount of baby names for Jordan and Taylor increases right at the same time that Taylor Swift and Micheal Jordan became popular. Stephen did not seem to rise with popularity of Steph Curry. Allen always seemed to be a mildly popular name and babies named Kobe saw an increase when Kobe Bryant rose to stardom. Taylor had the most out of any the names with almose 30000 babies named Taylor in one year. Simone Biles had the lowest rise after her stardom with only a couple hundred babies named Simone.
+
+# Volume of a Box Function
+
+```{r}
+#| label: fig-boxvolume
+#| fig-cap: "Box Volume Function Graph"
+#| fig-pos: H
+#| fig-height: 5
+#| fig-alt: "Graph showing a parabolic curve illustrating the function to maximize box volume with axes labeled in inches."
+#| lst-label: lst-figure1
+#| lst-cap: "Code Chunk Creating a graph of the function the volume of a box"
+#'getVolBox
+#'
+#'@description 
+#'The function will use the paper's intital width and length and the size cutoff
+#'to determine the best length to cutoff for the box to be the largest
+#'
+#'@param lencut numeric the length in inches that are cut off the paper
+#'@param intlengthsize numeric the inital length of the paper in inches
+#'@param intwidthsize numeric the initial width of the paper in inches
+#'
+#'@returns the volume of the box in cubed inches
+#'
+#'@details
+#' the getVolBox function gets the volume of the box in cubed inches using the 
+#' length cut off of the paper of one side of a corner. We will need to subtract
+#' length of 2 of the length cut off to get the right size for the length and
+#' width using V=LWH formula
+#'
+library(tidyverse)
+library(ggplot2)
+getVolBox <- function(lencut, intlengthsize = 11, intwidthsize = 8.5){
+   volume <- (intlengthsize - 2*lencut) * (intwidthsize - 2*lencut)*(lencut)
+   return(volume)
+   }
+
+ggplot(data.frame(x = 0:5), aes(x = x)) + 
+  stat_function(
+    fun = getVolBox, 
+    color = "blue", 
+    linewidth = 1
+    ) +
+  labs(
+  title = "Function to Maximize the Volume of a Box in Cubic Inches",
+  x = "Inches Cut Off",
+  y = "Area in Cubic inches"
+  )
+```
+@fig-boxvolume shows a line graph showing the function to maximize the volume of a box in cubic inches. The function gets the volume of the box in cubed inches using the length cut off of the paper of one side of a corner. The corner is then folded up to create the box. The x-axis of @fig-boxvolume is labeled "inches cut off" and ranges from 0 to 5. The y-axis is labeled "Area in Cubic inches" and ranges from 0 to 70. The blue curve starts at the origin, rises to a peak around 60 cubic inches, and then falls back towards the x-axis. The graph indicates a parabolic shape, suggesting the relationship between the inches cut off and the box's volume. The background consists of a grid of light gray lines. The function shows that to maximize the volume of the cut should be a little over 1.5 at around 1.58. It also shows that the minimum is at 0 and 5. The max volume is around 66 cubic inches. 
+
+# What I've Learned so far
+
+In this course I've learned how to wrangle data in the Armed Forces assignment and Baby Names assignment. I have learned how to use function such as pivot longer and pivot wider functions to adjust the amount of rows and columns in a data set along with the filter and select functions to remove useless columns and rows. I also learned how to create graphs for data such as the the box plots for the penguins data and the dot plot for the diamonds data. I also learned how to use the kable and tabyl function to create tables such as in the Armed Forced data. Another thing I learned was how to use and operate r and load packages in all of the assignments thus far. Another thing I have learned in this course is scraping data from google sheets and xl and websites such as in the psu football assignment and the Armed forces assignment. I also learned how to implement PCIP in my workflow in every assignment.
+
+# Code Appendix
+
+```{r codeAppend, ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE}
+```
