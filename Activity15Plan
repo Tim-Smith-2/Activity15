@@ -1,0 +1,45 @@
+Goal: Create a QMD and a PDF that contains 3 data visualizations and Narrative
+Texts, one description about what I learned in stat 184 so far, and a code appendix
+
+Needs: 
+packages: ggplot2, Quarto, tidyverse, pdf, googlesheets4, readr, kableExtra, knitr, janitor,
+dcData
+Data:Armed Forces Data, BabyNames
+
+Steps:
+1)Create a YAML Header
+2)create a code chunk and a header for the Armed Forces Data
+3)download packages for ArmedForces data
+4)Wrangle Armed Forces Data
+5)Filter the data to only get Army and Ennlisted groups of soldiers
+6)Create a frequency table with proper labels and percents pof the whole
+7)Create a Narrative text about the frequency table
+8) Create a new header for Baby Names and a code chunck
+9)Filter the BabyNames data set for the names BabyNames that I want to analyze
+10)Then combine sex and count
+11)Create a time series plot for all of the Baby Names
+12) Properly label the time series plot
+13) Create a narrative text for BabyNames
+14)Create a code chunck and header for the box function
+15)Create the function for the box
+16) create a ggplot for the function
+17)Create a narrative text for the box function
+18) Create a descripition for what I've learned so far in the course
+19)Create a code Appendix
+
+Goal: Create a repository for Activity 15 that has my Activity 14 work, a README file,
+and a Plan
+
+Needs: Activity 14 pdf, Activity 14 QMD file, Quarto, and GitHub
+
+Steps: 
+1) Create a repository
+2) create my branch
+3) make 2 issues
+4) address one of the issues by adding my QMD file from Activity 14 to my branch with a commit
+5) address the other issue by adding my PDF file to my branch with a commit
+6) add a README file
+7) add a Plan
+8) merge the my branch with the main branch
+
+
